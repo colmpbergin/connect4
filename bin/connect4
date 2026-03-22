@@ -1,0 +1,85 @@
+#!/bin/bash
+#set -x
+
+DEBUG=true
+HELP=false
+
+START_DIR=$(pwd)
+
+if [ -z "$CONNECT4_HOME" ] ; then
+  HELP=true
+fi
+
+# Show script help if requested
+if $HELP ; then
+  echo Please set \$CONNECT4_HOME
+  echo $0 '[options] '
+  echo 'Options:'
+  echo '  --help, --h            print this message and help'
+  echo '  '
+  exit 1
+fi
+
+BINDIR=$CONNECT4_HOME/bin
+LIBDIR=$CONNECT4_HOME/lib
+
+if [ -d $BINDIR ] ; then
+  cd $BINDIR
+else
+  echo Error: no bindir
+  exit 1
+fi
+
+if [ -z "$JAVACMD" ] ; then
+  if [ -n "$JAVA_HOME"  ] ; then
+    if [ -x "$JAVA_HOME/jre/bin/java" ] ; then
+      JAVACMD="$JAVA_HOME/jre/bin/java"
+    else
+      JAVACMD="$JAVA_HOME/bin/java"
+    fi
+  else
+    JAVACMD=`which java 2> /dev/null `
+  fi
+fi
+
+if [ ! -x "$JAVACMD" ] ; then
+  echo "Error: JAVA_HOME is not defined correctly."
+  echo "  We cannot execute $JAVACMD"
+  exit 1
+fi
+
+# OS specific support.  $var _must_ be set to either true or false.
+cygwin=false;
+mingw=false;
+case "`uname`" in
+  CYGWIN*) cygwin=true ;;
+  MINGW*) mingw=true ;;
+esac
+
+if [ ! -d $LIBDIR ] ; then
+  echo Error: no bindir
+  exit 1
+fi
+
+# For Cygwin ensure paths are in UNIX format before
+# anything is touched
+if $cygwin ; then
+	CLASSPATH="$(cygpath -w $LIBDIR/connect4.jar)"
+  JAVACMD="$(cygpath -u $JAVACMD)"
+else
+	CLASSPATH="$LIBDIR/connect4.jar"
+fi
+
+# Execute using eval/exec to preserve spaces in paths, java options, and args
+exec_command="exec \"$JAVACMD\" -cp $CLASSPATH edu.bergin.connect4.GameController"
+
+if $DEBUG ; then
+	echo CLASSPATH = $CLASSPATH
+	echo JAVACMD = $JAVACMD
+fi
+
+java -cp $CLASSPATH edu.bergin.connect4.GameController
+#eval $exec_command
+
+cd $START_DIR
+exit 0

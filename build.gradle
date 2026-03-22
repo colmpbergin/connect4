@@ -1,0 +1,172 @@
+plugins {
+    id 'java'
+    id 'jacoco'
+}
+
+group = 'edu.bergin'
+version = '1.0.0'
+
+// Configure Java toolchain (change the version if you need a different JDK)
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+// Use jars in lib/ as dependencies but exclude any cobertura helper jars in lib/cobertura
+dependencies {
+    implementation fileTree(dir: 'lib', include: ['**/*.jar'], exclude: ['cobertura/**'])
+    // Tests: Ant builds typically used JUnit 4; change if you use JUnit 5
+    testImplementation 'junit:junit:4.13.2'
+}
+
+// Match your Ant source layout
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src/main']
+        }
+        resources {
+            srcDirs = []
+        }
+    }
+    test {
+        java {
+            srcDirs = ['src/test']
+        }
+        resources {
+            srcDirs = []
+        }
+    }
+}
+
+// Produce the same output artifact name and location as Ant: lib/connect4.jar
+tasks.jar {
+    archiveBaseName.set('connect4')
+    archiveVersion.set('') // keep filename connect4.jar (no version suffix)
+    destinationDirectory.set(layout.projectDirectory.dir('lib'))
+    manifest {
+        attributes(
+            'Main-Class': 'edu.bergin.connect4.GameController'
+        )
+    }
+}
+
+// Produce GUI jar: lib/connect4-gui.jar
+tasks.register('jarGui', Jar) {
+    group = 'build'
+    description = 'Build the GUI jar (lib/connect4-gui.jar)'
+    dependsOn tasks.classes
+    archiveBaseName.set('connect4-gui')
+    archiveVersion.set('')
+    destinationDirectory.set(layout.projectDirectory.dir('lib'))
+    from(sourceSets.main.output)
+    manifest {
+        attributes(
+            'Main-Class': 'edu.bergin.connect4.GraphicalGameController'
+        )
+    }
+}
+
+// Provide a run task similar to Ant's `run` (runs the produced jar)
+tasks.register('run', Exec) {
+    group = 'application'
+    description = 'Run the built jar (same behaviour as Ant run)'
+    dependsOn tasks.jar
+    commandLine = ['java', '-jar', file('lib/connect4.jar').absolutePath]
+}
+
+// Provide a run-gui task for running the GUI version
+tasks.register('runGui', Exec) {
+    group = 'application'
+    description = 'Run the GUI version (lib/connect4-gui.jar)'
+    dependsOn tasks.jarGui
+    commandLine = ['java', '-jar', file('lib/connect4-gui.jar').absolutePath]
+}
+
+// Make a compat task named "compile" so users/scripts that call `gradle compile` keep working
+tasks.register('compile') {
+    group = 'build'
+    description = 'Compatibility alias for Gradle classes compilation (Ant compile)'
+    dependsOn tasks.classes
+}
+
+// Copy compiled classes to the Ant-style instrumented folder to mimic the Ant instrument target.
+// JaCoCo does not need pre-instrumentation, but this preserves structure if other scripts expect it.
+tasks.register('instrument', Copy) {
+    group = 'verification'
+    description = 'Copy compiled classes to build/classes-instrumented (compat layer for Ant)'
+    dependsOn tasks.classes
+    from(sourceSets.main.output.classesDirs)
+    into 'build/classes-instrumented'
+    doFirst {
+        delete 'build/classes-instrumented'
+        delete 'junit/coverage/cobertura.ser'
+    }
+}
+
+// Tests: keep JUnit XML and HTML in the same places your Ant build used
+test {
+    reports {
+        junitXml.required.set(true)
+        junitXml.outputLocation.set(layout.projectDirectory.dir('junit/data'))
+        html.required.set(true)
+        html.outputLocation.set(layout.projectDirectory.dir('junit/html'))
+    }
+    testLogging {
+        events "passed", "skipped", "failed"
+        exceptionFormat = "short"
+        showStandardStreams = true
+    }
+}
+
+// Make a "test-report" task (compat with Ant test-report) that just depends on the test reports already produced
+tasks.register('test-report') {
+    group = 'verification'
+    description = 'Compatibility target that ensures tests run and reports are produced in junit/html and junit/data'
+    dependsOn tasks.test
+}
+
+// JaCoCo coverage report: HTML output to junit/coverage to match Ant layout
+jacoco {
+    toolVersion = "0.8.8"
+}
+
+tasks.named('jacocoTestReport') {
+    dependsOn tasks.test
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+        html.outputLocation.set(layout.projectDirectory.dir('junit/coverage'))
+    }
+}
+
+// Provide a compatibility "coverage" target that mirrors Ant's coverage flow (runs instrument then tests under coverage).
+// This runs Gradle's tests with JaCoCo and writes reports to junit/coverage.
+tasks.register('coverage') {
+    group = 'verification'
+    description = 'Run tests with JaCoCo and produce coverage artifacts (replacement for Ant coverage)'
+    dependsOn tasks.test, tasks.named('jacocoTestReport')
+}
+
+// Provide a compatibility "coverage-report" that depends on jacocoTestReport
+tasks.register('coverage-report') {
+    group = 'verification'
+    description = 'Generate coverage report (compat with Ant coverage-report)'
+    dependsOn tasks.named('jacocoTestReport')
+}
+
+// Extend clean to remove Ant-style directories and the produced connect4.jar
+tasks.clean {
+    // remove the published jar produced by the build (but not third-party libs)
+    delete file('lib/connect4.jar')
+    delete file('lib/connect4-gui.jar')
+    delete file('build/classes-instrumented')
+    delete file('junit/data')
+    delete file('junit/html')
+    delete file('junit/coverage')
+}

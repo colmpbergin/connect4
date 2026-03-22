@@ -1,0 +1,145 @@
+<project name="Connect4" default="run">
+
+	<!-- Global properties for this build -->
+
+	<property name="src" location="src/main" />
+	<property name="src.test" location="src/test" />
+	<property name="build" location="build/classes/java/main" />
+	<property name="build.test" location="build/classes/java/test" />
+	<property name="build.instrumented" location="build/classes-instrumented" />
+	<property name="dist" location="lib" />
+	<property name="junit.data" location="junit/data" />
+	<property name="junit.html" location="junit/html" />
+
+	<!-- Cobertura -->
+
+	<property name="cobertura.output" location="junit/coverage" />
+	<property name="cobertura.datafile" location="${cobertura.output}/cobertura.ser" />
+
+	<path id="classpath.cobertura">
+		<fileset dir="${dist}/cobertura">
+			<include name="*.jar" />
+		</fileset>
+	</path>
+
+	<taskdef classpathref="classpath.cobertura" resource="tasks.properties" />
+
+	<!-- Classpath definitions -->
+
+	<path id="classpath.main">
+		<fileset dir="${dist}" includes="**/*.jar" />
+	</path>
+
+	<path id="classpath.test">
+		<path refid="classpath.main" />
+		<pathelement location="${build}" />
+	</path>
+
+	<!-- Targets -->
+
+	<target name="clean">
+		<delete dir="build/classes" />
+		<delete dir="${build.instrumented}" />
+		<delete dir="${cobertura.output}" />
+		<delete dir="${junit.html}" />
+		<delete dir="${junit.data}" />
+		<delete>
+			<fileset dir="${dist}" includes="connect4.jar,connect4-gui.jar" />
+		</delete>
+	</target>
+
+	<target name="compile" depends="init">
+		<javac includeantruntime="false" srcdir="${src}" destdir="${build}" debug="on" debuglevel="source,lines" />
+		<javac includeantruntime="false" srcdir="${src.test}" destdir="${build.test}" classpathref="classpath.test" />
+	</target>
+
+	<target name="coverage" depends="instrument">
+		<junit fork="on" forkmode="perBatch">
+			<sysproperty key="net.sourceforge.cobertura.datafile" file="${cobertura.datafile}" />
+			<classpath>
+				<pathelement location="${build.instrumented}" />
+				<path refid="classpath.test" />
+				<pathelement location="${build.test}" />
+				<path refid="classpath.cobertura" />
+			</classpath>
+			<formatter type="xml" />
+			<batchtest haltonfailure="no" todir="${junit.data}">
+				<fileset dir="${src.test}" includes="**/*Test.java" />
+			</batchtest>
+		</junit>
+	</target>
+
+	<target name="coverage-report" depends="coverage">
+		<cobertura-report destdir="${cobertura.output}" datafile="${cobertura.datafile}">
+			<fileset dir="${src}">
+				<include name="**/*.java" />
+			</fileset>
+		</cobertura-report>
+	</target>
+
+	<target name="init">
+		<!-- Create a time stamp -->
+		<tstamp />
+		<!-- Create the build directory structure used by compile -->
+		<mkdir dir="${build}" />
+		<mkdir dir="${build.test}" />
+		<mkdir dir="${cobertura.output}" />
+		<mkdir dir="${dist}" />
+		<mkdir dir="${junit.data}" />
+		<mkdir dir="${junit.html}" />
+	</target>
+
+	<target name="instrument" depends="compile">
+		<delete file="${cobertura.datafile}" />
+		<cobertura-instrument todir="${build.instrumented}" datafile="${cobertura.datafile}">
+			<fileset dir="${build}">
+				<include name="**/*.class" />
+			</fileset>
+		</cobertura-instrument>
+	</target>
+
+	<target name="jar" depends="compile">
+		<jar destfile="${dist}/connect4.jar" basedir="${build}">
+			<manifest>
+				<attribute name="Main-Class" value="edu.bergin.connect4.GameController" />
+			</manifest>
+		</jar>
+	</target>
+
+	<target name="jar-gui" depends="compile">
+		<jar destfile="${dist}/connect4-gui.jar" basedir="${build}">
+			<manifest>
+				<attribute name="Main-Class" value="edu.bergin.connect4.GraphicalGameController" />
+			</manifest>
+		</jar>
+	</target>
+
+	<target name="run" depends="jar">
+		<java jar="${dist}/connect4.jar" fork="true" />
+	</target>
+
+	<target name="run-gui" depends="jar-gui">
+		<java jar="${dist}/connect4-gui.jar" fork="true" />
+	</target>
+
+	<target name="test" depends="compile">
+		<junit fork="on" forkmode="perBatch" printsummary="on" logfailedtests="true" showoutput="true" >
+			<classpath>
+				<path refid="classpath.test" />
+				<pathelement location="${build.test}" />
+			</classpath>
+			<formatter type="xml" />
+			<batchtest haltonfailure="no" todir="${junit.data}">
+				<fileset dir="${src.test}" includes="**/*Test.java"/>
+			</batchtest>
+		</junit>
+	</target>
+
+	<target name="test-report" depends="test">
+		<junitreport todir="${junit.data}">
+			<fileset dir="${junit.data}" includes="**/TEST-*.xml"/>
+			<report format="frames" todir="${junit.html}" />
+		</junitreport>
+	</target>
+
+</project>
